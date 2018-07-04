@@ -1,0 +1,42 @@
+{
+  "name": "phantom-lambda",
+  "version": "1.0.0",
+  "description": "Phantomjs on AWS Lambda",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "author": "ssh",
+  "license": "",
+  "bugs": {
+    "url": ""
+  },
+  "homepage": "",
+  "dependencies": {
+    "mocha": "^3.2.0",
+    "phantomjs-prebuilt": "^2.1.14",
+    "moment": "~2.22.1"
+  },
+  "devDependencies": {
+    "aws-sdk": "^2.7.8"
+  },
+  "scripts": {
+    "deploy-pipeline": "aws cloudformation deploy --template-file pipeline.yaml --stack-name \"phantom-pipeline\" --capabilities CAPABILITY_IAM",
+    "package": "aws cloudformation package --template-file serverless.yaml --s3-bucket $BUILD_BUCKET --s3-prefix \"phantom\" --output-template-file serverless-output.yaml",
+    "publish": "aws cloudformation deploy --template-file serverless-output.yaml --stack-name \"phantom\" --capabilities CAPABILITY_IAM",
+    "deploy": "npm run package && npm run publish",
+    "test": "mocha test/*",
+    "integration-test": "mocha test/*"
+  },
+  "keywords": [
+    "phantomjs",
+    "aws",
+    "lambda",
+    "serverless",
+    "aws development tools",
+    "codepipeline",
+    "codebuild",
+    "phantomjs-prebuilt"
+  ]
+}

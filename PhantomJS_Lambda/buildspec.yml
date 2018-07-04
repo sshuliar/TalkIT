@@ -1,0 +1,18 @@
+version: 0.1
+phases:
+  install:
+    commands:
+      - npm install
+  pre_build:
+    commands:
+      - npm test
+  build:
+    commands:
+      - aws cloudformation package --template-file serverless.yaml --s3-bucket codepipeline-us-east-1-phantomjs 
+                                   --output-template-file output-serverless.yaml
+
+artifacts:
+  type: zip
+  files:
+    - serverless.yaml
+    - output-serverless.yaml

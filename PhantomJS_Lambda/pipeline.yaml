@@ -1,0 +1,142 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Pipeline CFN
+
+Parameters:
+    EnvironmentName:
+        Description: An environment name that will be prefixed to resource names
+        Type: String
+
+Resources:
+    BuildRole:
+        Type: AWS::IAM::Role
+        Properties:
+          AssumeRolePolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                - codebuild.amazonaws.com
+                - codepipeline.amazonaws.com
+                - cloudformation.amazonaws.com
+                - s3.amazonaws.com
+              Action:
+              - sts:AssumeRole
+          Path: "/"
+
+    BuildPolicy:
+        Type: AWS::IAM::Policy
+        Properties:
+          PolicyName: !Join ['-', [!Ref 'AWS::StackName', 'BuildPolicy']]
+          Roles:
+          - Ref: BuildRole
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Action:
+              - logs:*
+              Resource:
+              - arn:aws:logs:*:*:*
+            - Effect: Allow
+              Action:
+              - codebuild:*
+              - iam:PassRole
+              - iam:GetRole
+              - iam:CreateRole
+              - iam:PutRolePolicy
+              - iam:DeleteRolePolicy
+              - iam:DeleteRole
+              - iam:AttachRolePolicy
+              - lambda:*
+              - cloudformation:*
+              - s3:*
+              - codecommit:*
+              Resource:
+              - "*"
+
+    PhantomPipeline:
+      Type: AWS::CodePipeline::Pipeline
+      Properties:
+        Name: !Ref AWS::StackName
+        RoleArn: !GetAtt BuildRole.Arn
+        Stages:
+          - Name: Source
+            Actions:
+              - Name: SourceAction
+                ActionTypeId:
+                  Category: Source
+                  Owner: AWS
+                  Provider: CodeCommit
+                  Version: 1
+                Configuration:
+                  RepositoryName: PhantomJS_Lambda
+                  BranchName: develop
+                OutputArtifacts:
+                  - Name: PhantomApp
+                RunOrder: 1
+
+          - Name: Deploy
+            Actions:
+              - Name: BuildSource
+                InputArtifacts:
+                  - Name: PhantomApp
+                ActionTypeId:
+                  Category: Build
+                  Owner: AWS
+                  Version: 1
+                  Provider: CodeBuild
+                Configuration:
+                  ProjectName: !Join ['-', [ !Ref 'AWS::StackName', 'build'] ]
+                OutputArtifacts:
+                  - Name: PhantomAppBuild
+                RunOrder: 1
+
+        ArtifactStore:
+          Type: S3
+          Location: codepipeline-us-east-1-phantomjs
+
+    Build:
+      Type: AWS::CodeBuild::Project
+      Properties:
+        Name: !Join ['-', [ !Ref 'AWS::StackName', 'build'] ]
+        Description: A build for nodejs projects
+        ServiceRole: !GetAtt BuildRole.Arn
+        Artifacts:
+            Type: CODEPIPELINE
+            Name: Phantom
+        Environment:
+          Type: linuxContainer
+          ComputeType: BUILD_GENERAL1_SMALL
+          Image: aws/codebuild/nodejs:6.3.1
+          EnvironmentVariables:
+          - Name: BUILD_BUCKET
+            Value: codepipeline-us-east-1-phantomjs
+        Source:
+          Type: CODEPIPELINE
+        TimeoutInMinutes: 10
+
+    BuildBucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        PolicyDocument:
+          Id: MyPolicy
+          Version: '2012-10-17'
+          Statement:
+          - Sid: BuildAgentAccess
+            Action:
+            - s3:*
+            Effect: Allow
+            Resource: !Sub "arn:aws:s3:::codepipeline-us-east-1-phantomjs/*"
+            Principal:
+              AWS: !GetAtt BuildRole.Arn
+        Bucket: codepipeline-us-east-1-phantomjs
+
+Outputs:
+  BuildBucket:
+    Description: The bucket that holds all the builds
+    Value: PhantomJS_Lambda
+
+  PhantomPipeline:
+    Description: The pipeline that runs the show
+    Value: !Ref PhantomPipeline
